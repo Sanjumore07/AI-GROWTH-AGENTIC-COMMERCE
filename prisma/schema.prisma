@@ -1,0 +1,256 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Merchant {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  storeName   String
+  currency    String   @default("INR")
+  settings    String?  // JSON configuration: autonomy defaults, thresholds
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String    @default("demo_hash")
+  role         String    @default("MERCHANT_ADMIN") // MERCHANT_ADMIN, DEMO_USER
+  merchantId   String?
+  merchant     Merchant? @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model Customer {
+  id                  String          @id @default(cuid())
+  name                String
+  email               String          @unique
+  phone               String?
+  avatar              String?
+  segment             String          @default("High Intent") // Price Sensitive, High Intent, Tech Enthusiast, At Risk, VIP
+  priceSensitivity    String          @default("Medium") // Low, Medium, High
+  totalSpend          Float           @default(0)
+  ordersCount         Int             @default(0)
+  avgOrderValue       Float           @default(0)
+  purchaseProbability Float           @default(0.5) // 0.0 to 1.0
+  churnRisk           String          @default("Low") // Low, Medium, High
+  preferences         String?         // JSON: favorite categories, brand affinity, use cases
+  lastActiveAt        DateTime        @default(now())
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  orders              Order[]
+  carts               Cart[]
+  events              CustomerEvent[]
+  decisions           AIDecision[]
+}
+
+model ProductCategory {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  icon        String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+}
+
+model Product {
+  id              String           @id @default(cuid())
+  name            String
+  slug            String           @unique
+  description     String
+  price           Float
+  originalPrice   Float
+  discountPercent Float            @default(0)
+  categoryId      String
+  category        ProductCategory  @relation(fields: [categoryId], references: [id])
+  brand           String
+  rating          Float            @default(4.5)
+  reviewCount     Int              @default(120)
+  inStock         Boolean          @default(true)
+  stockCount      Int              @default(50)
+  tags            String           // JSON string array: ["coding", "mac", "portable"]
+  attributes      String           // JSON object: specs, battery, storage, processor, weight
+  features        String           // JSON string array: key selling points
+  images          String           // JSON string array of URLs
+  matchScore      Float            @default(90) // Base relevance score
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+}
+
+model Cart {
+  id             String     @id @default(cuid())
+  customerId     String?
+  customer       Customer?  @relation(fields: [customerId], references: [id])
+  sessionId      String     @unique
+  subtotal       Float      @default(0)
+  discount       Float      @default(0)
+  shipping       Float      @default(0)
+  total          Float      @default(0)
+  status         String     @default("ACTIVE") // ACTIVE, ABANDONED, RECOVERED, CONVERTED
+  intentScore    Int        @default(70) // 0-100
+  abandonmentRisk String    @default("Low") // Low, Medium, High
+  recoveryAction String?    // e.g. "Personalized Reminder (No Discount)", "Free Shipping"
+  recoveryStatus String     @default("NONE") // NONE, PENDING, EXECUTED, RECOVERED
+  abandonedAt    DateTime?
+  lastActivityAt DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  items          CartItem[]
+}
+
+model CartItem {
+  id          String   @id @default(cuid())
+  cartId      String
+  cart        Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  quantity    Int      @default(1)
+  priceAtAdd  Float
+  attributes  String?  // JSON: color, variant
+  createdAt   DateTime @default(now())
+}
+
+model Order {
+  id               String      @id @default(cuid())
+  orderNumber      String      @unique
+  customerId       String
+  customer         Customer    @relation(fields: [customerId], references: [id])
+  status           String      @default("COMPLETED") // PENDING, PROCESSING, COMPLETED, CANCELLED
+  subtotal         Float
+  discount         Float       @default(0)
+  shipping         Float       @default(0)
+  total            Float
+  currency         String      @default("INR")
+  paymentMethod    String      @default("UPI (Razorpay Sim)")
+  paymentStatus    String      @default("PAID") // PAID, SIMULATED, PENDING, FAILED
+  isAiInfluenced   Boolean     @default(false)
+  aiInfluenceType  String?     // RECOVERED_CART, INTENT_RECOMMENDATION, UPSELL_CROSS_SELL, OFFER_OPTIMIZED
+  shippingAddress  String?     // JSON object with street, city, state, postalCode
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  items            OrderItem[]
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Int      @default(1)
+  unitPrice  Float
+  totalPrice Float
+}
+
+model CustomerEvent {
+  id         String    @id @default(cuid())
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  sessionId  String
+  eventType  String    // PAGE_VIEW, INTENT_SEARCH, PRODUCT_VIEW, COMPARE_PRODUCTS, ADD_TO_CART, CART_ABANDON, CHECKOUT_START, PURCHASE, ADVISOR_CHAT
+  eventData  String    // JSON data specific to event
+  timestamp  DateTime  @default(now())
+}
+
+model AIAgent {
+  id                  String   @id @default(cuid())
+  key                 String   @unique // INTENT, DISCOVERY, ADVISOR, PERSONALIZATION, OFFER, RECOVERY, UPSELL, RETENTION, GROWTH, ORCHESTRATOR
+  name                String
+  role                String
+  description         String
+  status              String   @default("ACTIVE") // ACTIVE, PAUSED
+  autonomyLevel       String   @default("AUTO_EXECUTE") // SUGGEST_ONLY, APPROVAL_REQUIRED, AUTO_EXECUTE
+  confidenceThreshold Float    @default(0.80) // Threshold below which fallback or approval is triggered
+  modelProvider       String   @default("Gemini 1.5 Pro (Dual-Engine Fallback)")
+  totalExecutions     Int      @default(0)
+  successfulActions   Int      @default(0)
+  fallbackCount       Int      @default(0)
+  revenueInfluenced   Float    @default(0)
+  successRate         Float    @default(92.5)
+  fallbackRate        Float    @default(4.2)
+  avgLatencyMs        Int      @default(180)
+  lastActiveAt        DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AIDecision {
+  id                    String    @id @default(cuid())
+  agentKey              String
+  eventType             String    // CART_ABANDONMENT, INTENT_QUERY, CHECKOUT_OFFER, UPSELL_OPPORTUNITY
+  customerId            String?
+  customer              Customer? @relation(fields: [customerId], references: [id])
+  entityType            String?   // Cart, Product, Order, Campaign
+  entityId              String?
+  contextJson           String    // JSON snapshot of input context
+  intentScore           Int?      // 0-100
+  riskLevel             String?   // Low, Medium, High
+  optionsConsideredJson String    // JSON list of candidate actions evaluated
+  decision              String    // Selected action
+  confidence            Float     // 0.0 to 1.0 (e.g. 0.93)
+  reasoning             String    // Explainable reasoning
+  status                String    @default("EXECUTED") // EXECUTED, PENDING_APPROVAL, APPROVED, REJECTED, FALLBACK
+  requiresApproval      Boolean   @default(false)
+  approvedBy            String?   // Merchant name or user id
+  approvedAt            DateTime?
+  outcome               String?   // e.g. "Customer returned and completed purchase ₹74,999"
+  revenueImpact         Float     @default(0)
+  timestamp             DateTime  @default(now())
+}
+
+model Campaign {
+  id                    String    @id @default(cuid())
+  name                  String
+  goal                  String
+  targetAudience        String
+  message               String
+  recommendedProductIds String    // JSON array of product IDs
+  status                String    @default("ACTIVE") // DRAFT, ACTIVE, PAUSED, COMPLETED
+  expectedImpact        String    // e.g. "+18% Repeat Orders, ₹2.4L est. revenue"
+  actualRevenue         Float     @default(0)
+  sentCount             Int       @default(0)
+  convertedCount        Int       @default(0)
+  aiReasoning           String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String   @default("INFO") // ALERT, SUCCESS, WARNING, APPROVAL_REQUIRED, RECOVERY
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  timestamp  DateTime @default(now())
+  actor      String   // System, Merchant, or specific AI Agent name
+  agentKey   String?
+  action     String   // Triggered Reminder, Executed Offer, Approved Discount, etc.
+  entityType String?
+  entityId   String?
+  outcome    String   // Success, Pending, Fallback, Rejected
+  details    String?
+}
