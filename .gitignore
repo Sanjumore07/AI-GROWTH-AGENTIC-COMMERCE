@@ -27,5 +27,7 @@ yarn-error.log*
 .env*.local
 
 # prisma local dev db
-dev.db
-dev.db-journal
+*.db-journal
+*.db-wal
+*.db-shm
+

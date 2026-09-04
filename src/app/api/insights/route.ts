@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { GrowthInsightsAgent } from "@/lib/ai/agents/growth-agent";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const insights = await GrowthInsightsAgent.generateInsights();

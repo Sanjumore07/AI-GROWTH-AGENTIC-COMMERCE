@@ -19,19 +19,36 @@ export async function GET(req: NextRequest) {
     });
 
     if (!cart) {
-      cart = await prisma.cart.create({
-        data: {
-          sessionId,
-          status: "ACTIVE",
-        },
-        include: {
-          items: {
-            include: {
-              product: { include: { category: true } },
+      try {
+        cart = await prisma.cart.create({
+          data: {
+            sessionId,
+            status: "ACTIVE",
+          },
+          include: {
+            items: {
+              include: {
+                product: { include: { category: true } },
+              },
             },
           },
-        },
-      });
+        });
+      } catch (e) {
+        cart = await prisma.cart.findUnique({
+          where: { sessionId },
+          include: {
+            items: {
+              include: {
+                product: { include: { category: true } },
+              },
+            },
+          },
+        });
+      }
+    }
+
+    if (!cart) {
+      return NextResponse.json({ error: "Failed to initialize cart" }, { status: 500 });
     }
 
     // Trigger proactive Upsell & Offer evaluations via Orchestrator

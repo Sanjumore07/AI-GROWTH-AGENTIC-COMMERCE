@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { aiEngine } from "@/lib/ai";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const campaigns = await prisma.campaign.findMany({
